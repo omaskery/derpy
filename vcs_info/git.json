@@ -1,0 +1,16 @@
+{
+  "name": "git",
+  "get_version": "git --version",
+  "default_version": "master",
+  "acquire": [
+    "git clone {DEP_URL} {DEP_NAME}"
+  ],
+  "checkout": [
+    "git checkout {DEP_VERSION}"
+  ],
+  "upgrade": [
+    "git fetch",
+    "git checkout {DEP_VERSION}"
+  ],
+  "get_version_of": "git rev-parse HEAD"
+}
