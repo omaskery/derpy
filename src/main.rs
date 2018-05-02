@@ -269,7 +269,7 @@ fn save_config<P: AsRef<Path>>(config: &DerpyFile, path: P) -> Result<(), Error>
         .truncate(true)
         .create(true)
         .open(path)?;
-    let contents = serde_json::to_string(config)?;
+    let contents = serde_json::to_string_pretty(config)?;
     Ok(file.write_all(contents.as_bytes())?)
 }
 
@@ -398,7 +398,7 @@ fn run_cli(matches: clap::ArgMatches) -> Result<(), Error> {
     }
 }
 
-fn cmd_init(context: CommandContext, matches: &clap::ArgMatches) -> Result<(), Error> {
+fn cmd_init(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(), Error> {
     let config_path = context.path.join(CONFIG_FILE);
     if config_path.is_file() {
         return Err(DerpyError::AlreadyInitialised.into());
@@ -420,16 +420,16 @@ fn cmd_add(context: CommandContext, matches: &clap::ArgMatches) -> Result<(), Er
 
     let _vcs_version = match vcs_info.get_version(&context.log) {
         Ok(version) => {
-            context.log.verbose(format!("detected {} at version '{}'", vcs, version));
+            context.log.verbose(format!("detected {} at version '{}'", vcs_info.get_name(), version));
             Some(version)
         },
-        Err(e) => {
-            println!("warning: unable to determine version of {}, is it installed?", vcs);
+        Err(_) => {
+            println!("warning: unable to determine version of {}, is it installed?", vcs_info.get_name());
             None
         },
     };
 
-    let version = version.map_or_else(|| vcs_info.default_version, |v| v.into() );
+    let version = version.map_or_else(|| vcs_info.get_default_version().into(), |v| v.into() );
 
     let options = match matches.values_of("options") {
         Some(values) => {
@@ -491,7 +491,7 @@ enum AcquireMode {
     Upgrade,
 }
 
-fn acquire(context: &CommandContext, config: &DerpyFile, dep: &Dependency, acquire_mode: AcquireMode) -> Result<AcquireOutcome, Error> {
+fn acquire(context: &CommandContext, dep: &Dependency, acquire_mode: AcquireMode) -> Result<AcquireOutcome, Error> {
     let vcs = match load_vcs_info(&dep.vcs)? {
         Some(vcs) => vcs,
         None => return Err(DerpyError::UnknownVcs { name: dep.vcs.clone() }.into()),
@@ -556,7 +556,7 @@ fn acquire(context: &CommandContext, config: &DerpyFile, dep: &Dependency, acqui
     }
 }
 
-fn cmd_acquire(context: CommandContext, matches: &clap::ArgMatches) -> Result<(), Error> {
+fn cmd_acquire(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(), Error> {
     let config_path = context.path.join(CONFIG_FILE);
     let config = load_config(&config_path)?;
 
@@ -573,7 +573,7 @@ fn cmd_acquire(context: CommandContext, matches: &clap::ArgMatches) -> Result<()
             Some(version) => AcquireMode::LockTo { version },
             _ => AcquireMode::Acquire,
         };
-        let new_lock_version = match acquire(&context, &config, dep, acquire_mode)? {
+        let new_lock_version = match acquire(&context, dep, acquire_mode)? {
             AcquireOutcome::Acquired { at_version } => {
                 println!("- acquired '{}' at version {}", name, at_version);
                 Some(at_version)
@@ -606,7 +606,7 @@ fn cmd_acquire(context: CommandContext, matches: &clap::ArgMatches) -> Result<()
     }
 
     if lock_file_updated {
-        save_config(&lock, &lock_path);
+        save_config(&lock, &lock_path)?;
         println!("lock file updated");
     }
 
@@ -638,7 +638,7 @@ fn cmd_upgrade(context: CommandContext, matches: &clap::ArgMatches) -> Result<()
     };
 
     for (name, dep) in to_upgrade {
-        let new_lock_version = match acquire(&context, &config, &dep, AcquireMode::Upgrade)? {
+        let new_lock_version = match acquire(&context, &dep, AcquireMode::Upgrade)? {
             AcquireOutcome::Acquired { at_version } => {
                 println!("- acquired '{}' at version {}", name, at_version);
                 Some(at_version)
@@ -671,7 +671,7 @@ fn cmd_upgrade(context: CommandContext, matches: &clap::ArgMatches) -> Result<()
     }
 
     if lock_file_updated {
-        save_config(&lock, &lock_path);
+        save_config(&lock, &lock_path)?;
         println!("lock file updated");
     }
 
