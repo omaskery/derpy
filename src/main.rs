@@ -10,107 +10,19 @@ extern crate serde_derive;
 #[macro_use]
 extern crate failure_derive;
 
+mod error;
+
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use strfmt::Format;
 
+use error::DerpyError;
+
 const VCS_INFO_DIR: &str = "vcs_info/";
 const DEPENDENCY_DIR: &str = "deps/";
 const CONFIG_FILE: &str = "derpy.json";
 const CONFIG_LOCK_FILE: &str = "derpy.lock.json";
-
-#[derive(Fail, Debug)]
-enum DerpyError {
-    #[fail(display = "invalid arguments: {}", reason)]
-    InvalidArguments {
-        reason: String,
-    },
-    #[fail(display = "already initialised in this directory")]
-    AlreadyInitialised,
-    #[fail(display = "dependency '{}' already exists", name)]
-    DependencyAlreadyExists {
-        name: String,
-    },
-    #[fail(display = "version control system '{}' unknown", name)]
-    UnknownVcs {
-        name: String,
-    },
-    #[fail(display = "vcs command {:?} returned {:?}, stdout='{}', stderr='{}'", cmd, return_code, stdout, stderr)]
-    VcsCommandFailed {
-        cmd: VcsCommand,
-        return_code: subprocess::ExitStatus,
-        stdout: String,
-        stderr: String,
-    },
-    #[fail(display = "acquire mode set to {:?} but no repository found", acquire_mode)]
-    NonsenseAcquireMode {
-        acquire_mode: AcquireMode,
-    },
-    #[fail(display = "failed to expand macros: {} (source text: {}, macros: {:?})", error, source_text, macros)]
-    MacroExpansionFailure {
-        source_text: String,
-        macros: std::collections::HashMap<String, String>,
-        error: strfmt::FmtError,
-    },
-    #[fail(display = "error invoking subprocess: {} (command: {:?})", error, cmd)]
-    SubprocessError {
-        cmd: VcsCommand,
-        error: subprocess::PopenError,
-    },
-    #[fail(display = "unable to determine current directory: {:?}", error)]
-    UnableToDetermineCurrentDir {
-        error: std::io::Error,
-    },
-    #[fail(display = "unable to change current directory: {:?}", error)]
-    UnableToChangeDir {
-        error: std::io::Error,
-    },
-    #[fail(display = "unable to determine current exe path: {:?}", error)]
-    UnableToDetermineCurrentExePath {
-        error: std::io::Error,
-    },
-    #[fail(display = "failed to create directory: {:?}", error)]
-    FailedToCreateDirectory {
-        error: std::io::Error,
-    },
-    #[fail(display = "unable to open VCS info file: {:?}", error)]
-    UnableToOpenVcsInfo {
-        error: std::io::Error,
-    },
-    #[fail(display = "unable to read VCS info file: {:?}", error)]
-    UnableToReadVcsInfo {
-        error: std::io::Error,
-    },
-    #[fail(display = "unable to decode VCS info file: {:?}", error)]
-    UnableToDecodeVcsInfo {
-        error: serde_json::Error,
-    },
-    #[fail(display = "unable to open config file: {:?}", error)]
-    UnableToOpenConfig {
-        error: std::io::Error,
-    },
-    #[fail(display = "unable to read config file: {:?}", error)]
-    UnableToReadConfig {
-        error: std::io::Error,
-    },
-    #[fail(display = "unable to decode config file: {:?}", error)]
-    UnableToDecodeConfig {
-        error: serde_json::Error,
-    },
-    #[fail(display = "unable to create config file: {:?}", error)]
-    UnableToCreateConfig {
-        error: std::io::Error,
-    },
-    #[fail(display = "unable to encode config file: {:?}", error)]
-    UnableToEncodeConfig {
-        error: serde_json::Error,
-    },
-    #[fail(display = "unable to write to config file: {:?}", error)]
-    UnableToWriteConfig {
-        error: std::io::Error,
-    },
-}
 
 #[derive(Serialize, Deserialize, Clone)]
 struct Dependency {
@@ -652,7 +564,7 @@ enum AcquireOutcome {
 }
 
 #[derive(Debug)]
-enum AcquireMode {
+pub enum AcquireMode {
     Acquire,
     LockTo {
         version: String,
