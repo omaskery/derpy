@@ -92,6 +92,7 @@ pub fn acquire(log: &Log, dep: &Dependency, acquire_mode: AcquireMode) -> Result
             })
         } else {
             Err(DerpyError::NonsenseAcquireMode {
+                dependency: dep.name.clone(),
                 acquire_mode,
             }.into())
         }

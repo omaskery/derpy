@@ -30,8 +30,9 @@ pub enum DerpyError {
         stdout: String,
         stderr: String,
     },
-    #[fail(display = "acquire mode set to {:?} but no repository found", acquire_mode)]
+    #[fail(display = "acquire mode for dependency '{}' set to {:?} but no repository found", dependency, acquire_mode)]
     NonsenseAcquireMode {
+        dependency: String,
         acquire_mode: AcquireMode,
     },
     #[fail(display = "failed to expand macros: {} (source text: {}, macros: {:?})", error, source_text, macros)]
