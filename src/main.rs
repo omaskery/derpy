@@ -89,24 +89,16 @@ fn main() {
 }
 
 fn run_cli(matches: clap::ArgMatches) -> Result<(), DerpyError> {
-    let cmd_name = matches.subcommand_name().map(|s| s.to_string());
-
-    let context = cmds::CommandContext::from_args(matches)?;
-
-    match cmd_name {
-        Some(name) => {
-            match name.as_str() {
-                "init" => cmds::cli_init(context),
-                "add" => cmds::cli_add(context),
-                "acquire" => cmds::cli_acquire(context),
-                "upgrade" => cmds::cli_upgrade(context),
-                _ => unreachable!(),
-            }
-        },
-        None => {
+    match matches.subcommand() {
+        ("init", Some(matches)) => cmds::cli_init(cmds::CommandContext::from_args(matches.clone())?),
+        ("add", Some(matches)) => cmds::cli_add(cmds::CommandContext::from_args(matches.clone())?),
+        ("acquire", Some(matches)) => cmds::cli_acquire(cmds::CommandContext::from_args(matches.clone())?),
+        ("upgrade", Some(matches)) => cmds::cli_upgrade(cmds::CommandContext::from_args(matches.clone())?),
+        ("", None) => {
             Err(DerpyError::InvalidArguments {
                 reason: "no subcommand was used".into(),
             }.into())
         },
+        _ => unreachable!(),
     }
 }
