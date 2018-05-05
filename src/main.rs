@@ -18,12 +18,11 @@ mod log;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::io::Read;
 
 use derpyfile::{DerpyFile, load_config, save_config};
 use dependency::Dependency;
+use vcs::load_vcs_info;
 use error::DerpyError;
-use vcs::VcsInfo;
 use log::Log;
 
 const VCS_INFO_DIR: &str = "vcs_info/";
@@ -63,36 +62,6 @@ fn ensure_dir<P: AsRef<Path>>(path: P) -> Result<(), DerpyError> {
         })
     }
     Ok(())
-}
-
-fn load_vcs_info(vcs_name: &str) -> Result<Option<VcsInfo>, DerpyError> {
-    let full_path = install_dir()?
-        .join(VCS_INFO_DIR)
-        .join(vcs_name)
-        .with_extension("json");
-
-    if full_path.is_file() {
-        let mut contents = String::new();
-        let mut file = match std::fs::File::open(full_path) {
-            Ok(file) => file,
-            Err(e) => return Err(DerpyError::UnableToOpenVcsInfo {
-                error: e,
-            }),
-        };
-        if let Err(e) = file.read_to_string(&mut contents) {
-            return Err(DerpyError::UnableToReadVcsInfo {
-                error: e,
-            });
-        }
-        match serde_json::from_str(&contents) {
-            Ok(info) => Ok(Some(info)),
-            Err(e) => Err(DerpyError::UnableToDecodeVcsInfo {
-                error: e,
-            }),
-        }
-    } else {
-        Ok(None)
-    }
 }
 fn parse_option_key_value(text: &str) -> Result<(String, String), String> {
     let parts = text.splitn(2, ":")
