@@ -4,7 +4,7 @@ use strfmt::FmtError;
 use serde_json;
 use std::io;
 
-use super::AcquireMode;
+use acquire::AcquireMode;
 use vcs::VcsCommand;
 
 #[derive(Fail, Debug)]
