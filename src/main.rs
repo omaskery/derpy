@@ -16,25 +16,19 @@ mod arg_utils;
 mod derpyfile;
 mod consts;
 mod error;
+mod cmds;
 mod vcs;
 mod log;
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
 
 use arg_utils::{parse_option_key_value, validate_option_key_value};
 use consts::{DEPENDENCY_DIR, CONFIG_LOCK_FILE, CONFIG_FILE};
 use derpyfile::{DerpyFile, load_config, save_config};
-use path_utils::{determine_cwd, ensure_dir};
+use path_utils::ensure_dir;
 use dependency::Dependency;
 use vcs::load_vcs_info;
 use error::DerpyError;
-use log::Log;
-
-struct CommandContext {
-    path: PathBuf,
-    log: Log,
-}
 
 fn main() {
     use clap::{Arg, SubCommand};
@@ -101,39 +95,34 @@ fn main() {
 }
 
 fn run_cli(matches: clap::ArgMatches) -> Result<(), DerpyError> {
-    let context = CommandContext {
-        path: determine_cwd(matches.value_of("path"))?,
-        log: Log::from(matches.occurrences_of("verbosity")),
-    };
+    let cmd_name = matches.subcommand_name().map(|s| s.to_string());
 
-    match matches.subcommand() {
-        ("init", Some(init_matches)) => cmd_init(context, init_matches),
-        ("add", Some(add_matches)) => cmd_add(context, add_matches),
-        ("acquire", Some(acquire_matches)) => cmd_acquire(context, acquire_matches),
-        ("upgrade", Some(upgrade_matches)) => cmd_upgrade(context, upgrade_matches),
-        ("", None) => {
+    let context = cmds::CommandContext::from_args(matches)?;
+
+    match cmd_name {
+        Some(name) => {
+            match name.as_str() {
+                "init" => cmds::init(context),
+                "add" => cmd_add(context),
+                "acquire" => cmd_acquire(context),
+                "upgrade" => cmd_upgrade(context),
+                _ => unreachable!(),
+            }
+        },
+        None => {
             Err(DerpyError::InvalidArguments {
                 reason: "no subcommand was used".into(),
             }.into())
         },
-        _ => unreachable!(),
     }
 }
 
-fn cmd_init(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(), DerpyError> {
-    let config_path = context.path.join(CONFIG_FILE);
-    if config_path.is_file() {
-        return Err(DerpyError::AlreadyInitialised.into());
-    }
-    Ok(save_config(&Default::default(), config_path)?)
-}
-
-fn cmd_add(context: CommandContext, matches: &clap::ArgMatches) -> Result<(), DerpyError> {
-    let vcs = matches.value_of("vcs").unwrap().to_string();
-    let name = matches.value_of("name").unwrap().to_string();
-    let url = matches.value_of("url").unwrap().to_string();
-    let version = matches.value_of("version");
-    let target = matches.value_of("target").unwrap_or(DEPENDENCY_DIR).to_string();
+fn cmd_add(context: cmds::CommandContext) -> Result<(), DerpyError> {
+    let vcs = context.matches.value_of("vcs").unwrap().to_string();
+    let name = context.matches.value_of("name").unwrap().to_string();
+    let url = context.matches.value_of("url").unwrap().to_string();
+    let version = context.matches.value_of("version");
+    let target = context.matches.value_of("target").unwrap_or(DEPENDENCY_DIR).to_string();
 
     let vcs_info = match load_vcs_info(&vcs)? {
         Some(info) => info,
@@ -153,7 +142,7 @@ fn cmd_add(context: CommandContext, matches: &clap::ArgMatches) -> Result<(), De
 
     let version = version.map_or_else(|| vcs_info.get_default_version().into(), |v| v.into() );
 
-    let options = match matches.values_of("options") {
+    let options = match context.matches.values_of("options") {
         Some(values) => {
             values.map(|option| parse_option_key_value(option).unwrap())
                 .collect::<BTreeMap<_,_>>()
@@ -213,7 +202,7 @@ pub enum AcquireMode {
     Upgrade,
 }
 
-fn acquire(context: &CommandContext, dep: &Dependency, acquire_mode: AcquireMode) -> Result<AcquireOutcome, DerpyError> {
+fn acquire(context: &cmds::CommandContext, dep: &Dependency, acquire_mode: AcquireMode) -> Result<AcquireOutcome, DerpyError> {
     let vcs = match load_vcs_info(&dep.vcs)? {
         Some(vcs) => vcs,
         None => return Err(DerpyError::UnknownVcs { name: dep.vcs.clone() }.into()),
@@ -278,7 +267,7 @@ fn acquire(context: &CommandContext, dep: &Dependency, acquire_mode: AcquireMode
     }
 }
 
-fn cmd_acquire(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(), DerpyError> {
+fn cmd_acquire(context: cmds::CommandContext) -> Result<(), DerpyError> {
     let config_path = context.path.join(CONFIG_FILE);
     let config = load_config(&config_path)?;
 
@@ -335,7 +324,7 @@ fn cmd_acquire(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(
     Ok(())
 }
 
-fn cmd_upgrade(context: CommandContext, matches: &clap::ArgMatches) -> Result<(), DerpyError> {
+fn cmd_upgrade(context: cmds::CommandContext) -> Result<(), DerpyError> {
     let config_path = context.path.join(CONFIG_FILE);
     let config = load_config(&config_path)?;
 
@@ -347,10 +336,10 @@ fn cmd_upgrade(context: CommandContext, matches: &clap::ArgMatches) -> Result<()
     };
     let mut lock_file_updated = false;
 
-    let to_upgrade = if matches.is_present("all") {
+    let to_upgrade = if context.matches.is_present("all") {
         config.dependencies.clone()
     } else {
-        let to_upgrade_names = matches.values_of("dependencies").unwrap()
+        let to_upgrade_names = context.matches.values_of("dependencies").unwrap()
             .map(|s| s.into())
             .collect::<Vec<_>>();
         config.dependencies.iter()
