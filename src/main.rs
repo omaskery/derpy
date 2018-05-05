@@ -11,6 +11,7 @@ extern crate serde_derive;
 extern crate failure_derive;
 
 mod dependency;
+mod path_utils;
 mod derpyfile;
 mod consts;
 mod error;
@@ -18,10 +19,11 @@ mod vcs;
 mod log;
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use consts::{DEPENDENCY_DIR, CONFIG_LOCK_FILE, CONFIG_FILE};
 use derpyfile::{DerpyFile, load_config, save_config};
+use path_utils::{determine_cwd, ensure_dir};
 use dependency::Dependency;
 use vcs::load_vcs_info;
 use error::DerpyError;
@@ -30,35 +32,6 @@ use log::Log;
 struct CommandContext {
     path: PathBuf,
     log: Log,
-}
-
-fn install_dir() -> Result<PathBuf, DerpyError> {
-    let dir = if cfg!(debug_assertions) {
-        match std::env::current_dir() {
-            Ok(dir) => dir,
-            Err(e) => return Err(DerpyError::UnableToDetermineCurrentDir {
-                error: e,
-            }),
-        }
-    } else {
-        match std::env::current_exe() {
-            Ok(dir) => dir,
-            Err(e) => return Err(DerpyError::UnableToDetermineCurrentExePath {
-                error: e,
-            })
-        }
-    };
-
-    Ok(dir)
-}
-
-fn ensure_dir<P: AsRef<Path>>(path: P) -> Result<(), DerpyError> {
-    if let Err(e) = std::fs::create_dir_all(path) {
-        return Err(DerpyError::FailedToCreateDirectory {
-            error: e,
-        })
-    }
-    Ok(())
 }
 
 fn parse_option_key_value(text: &str) -> Result<(String, String), String> {
@@ -141,32 +114,6 @@ fn main() {
         Err(e) => println!("error: {}", e),
         _ => {},
     }
-}
-
-fn determine_cwd(override_path: Option<&str>) -> Result<PathBuf, DerpyError> {
-    let path = match override_path {
-        Some(path) => {
-            let path: PathBuf = path.into();
-            if path.is_absolute() {
-                path
-            } else {
-                match std::env::current_dir() {
-                    Ok(dir) => dir.join(path),
-                    Err(e) => return Err(DerpyError::UnableToDetermineCurrentDir {
-                        error: e,
-                    }),
-                }
-            }
-        },
-        _ => match std::env::current_dir() {
-            Ok(dir) => dir,
-            Err(e) => return Err(DerpyError::UnableToDetermineCurrentDir {
-                error: e,
-            }),
-        },
-    };
-
-    Ok(path)
 }
 
 fn run_cli(matches: clap::ArgMatches) -> Result<(), DerpyError> {
