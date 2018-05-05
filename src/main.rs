@@ -11,14 +11,16 @@ extern crate serde_derive;
 extern crate failure_derive;
 
 mod dependency;
+mod derpyfile;
 mod error;
 mod vcs;
 mod log;
 
 use std::collections::BTreeMap;
-use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::io::Read;
 
+use derpyfile::{DerpyFile, load_config, save_config};
 use dependency::Dependency;
 use error::DerpyError;
 use vcs::VcsInfo;
@@ -29,23 +31,10 @@ const DEPENDENCY_DIR: &str = "deps/";
 const CONFIG_FILE: &str = "derpy.json";
 const CONFIG_LOCK_FILE: &str = "derpy.lock.json";
 
-#[derive(Serialize, Deserialize)]
-struct DerpyFile {
-    dependencies: BTreeMap<String, Dependency>,
-}
-
-impl Default for DerpyFile {
-    fn default() -> Self {
-        Self {
-            dependencies: BTreeMap::new(),
-        }
-    }
-}
 struct CommandContext {
     path: PathBuf,
     log: Log,
 }
-
 
 fn install_dir() -> Result<PathBuf, DerpyError> {
     let dir = if cfg!(debug_assertions) {
@@ -105,54 +94,6 @@ fn load_vcs_info(vcs_name: &str) -> Result<Option<VcsInfo>, DerpyError> {
         Ok(None)
     }
 }
-
-fn load_config<P: AsRef<Path>>(path: P) -> Result<DerpyFile, DerpyError> {
-    let mut contents = String::new();
-    let mut file = match std::fs::File::open(path) {
-        Ok(file) => file,
-        Err(e) => return Err(DerpyError::UnableToOpenConfig {
-            error: e,
-        }),
-    };
-    if let Err(e) = file.read_to_string(&mut contents) {
-        return Err(DerpyError::UnableToReadConfig {
-            error: e,
-        });
-    }
-    match serde_json::from_str(&contents) {
-        Ok(config) => Ok(config),
-        Err(e) => Err(DerpyError::UnableToDecodeConfig {
-            error: e,
-        })
-    }
-}
-
-fn save_config<P: AsRef<Path>>(config: &DerpyFile, path: P) -> Result<(), DerpyError> {
-    let file = std::fs::OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .create(true)
-        .open(path);
-    let mut file = match file {
-        Ok(file) => file,
-        Err(e) => return Err(DerpyError::UnableToCreateConfig {
-            error: e,
-        }),
-    };
-    let contents = match serde_json::to_string_pretty(config) {
-        Ok(contents) => contents,
-        Err(e) => return Err(DerpyError::UnableToEncodeConfig {
-            error: e,
-        }),
-    };
-    match file.write_all(contents.as_bytes()) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(DerpyError::UnableToWriteConfig {
-            error: e,
-        }),
-    }
-}
-
 fn parse_option_key_value(text: &str) -> Result<(String, String), String> {
     let parts = text.splitn(2, ":")
         .collect::<Vec<_>>();
