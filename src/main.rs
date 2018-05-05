@@ -12,6 +12,7 @@ extern crate failure_derive;
 
 mod dependency;
 mod derpyfile;
+mod consts;
 mod error;
 mod vcs;
 mod log;
@@ -19,16 +20,12 @@ mod log;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use consts::{DEPENDENCY_DIR, CONFIG_LOCK_FILE, CONFIG_FILE};
 use derpyfile::{DerpyFile, load_config, save_config};
 use dependency::Dependency;
 use vcs::load_vcs_info;
 use error::DerpyError;
 use log::Log;
-
-const VCS_INFO_DIR: &str = "vcs_info/";
-const DEPENDENCY_DIR: &str = "deps/";
-const CONFIG_FILE: &str = "derpy.json";
-const CONFIG_LOCK_FILE: &str = "derpy.lock.json";
 
 struct CommandContext {
     path: PathBuf,
@@ -63,6 +60,7 @@ fn ensure_dir<P: AsRef<Path>>(path: P) -> Result<(), DerpyError> {
     }
     Ok(())
 }
+
 fn parse_option_key_value(text: &str) -> Result<(String, String), String> {
     let parts = text.splitn(2, ":")
         .collect::<Vec<_>>();

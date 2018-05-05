@@ -2,6 +2,7 @@ use subprocess::{Popen, PopenConfig, Redirection};
 use std::env::{current_dir, set_current_dir};
 use std::collections::HashMap;
 use dependency::Dependency;
+use consts::VCS_INFO_DIR;
 use error::DerpyError;
 use std::fmt::Debug;
 use std::path::Path;
@@ -12,7 +13,7 @@ use std::io::Read;
 use serde_json;
 use log::Log;
 
-use super::{install_dir, VCS_INFO_DIR};
+use super::install_dir;
 
 pub type VcsCommand = Vec<String>;
 pub type VcsCommandList = Vec<VcsCommand>;
