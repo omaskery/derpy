@@ -7,4 +7,5 @@ derpy.lock.json
 
 *.iml
 .idea
+deps
 
