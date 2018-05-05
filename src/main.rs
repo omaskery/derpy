@@ -13,6 +13,7 @@ extern crate failure_derive;
 mod dependency;
 mod error;
 mod vcs;
+mod log;
 
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
@@ -21,6 +22,7 @@ use std::path::{Path, PathBuf};
 use dependency::Dependency;
 use error::DerpyError;
 use vcs::VcsInfo;
+use log::Log;
 
 const VCS_INFO_DIR: &str = "vcs_info/";
 const DEPENDENCY_DIR: &str = "deps/";
@@ -39,34 +41,6 @@ impl Default for DerpyFile {
         }
     }
 }
-
-#[derive(Copy, Clone, Debug)]
-enum Verbosity {
-    None,
-    Info,
-    Verbose,
-}
-
-pub struct Log {
-    verbosity: Verbosity,
-}
-
-impl Log {
-    fn log(&self, verbosity: Verbosity, text: String) {
-        if self.verbosity as usize >= verbosity as usize {
-            println!("{}", text);
-        }
-    }
-
-    fn verbose(&self, text: String) {
-        self.log(Verbosity::Verbose, text)
-    }
-
-    fn info(&self, text: String) {
-        self.log(Verbosity::Info, text)
-    }
-}
-
 struct CommandContext {
     path: PathBuf,
     log: Log,
@@ -290,14 +264,7 @@ fn determine_cwd(override_path: Option<&str>) -> Result<PathBuf, DerpyError> {
 fn run_cli(matches: clap::ArgMatches) -> Result<(), DerpyError> {
     let context = CommandContext {
         path: determine_cwd(matches.value_of("path"))?,
-        log: Log {
-            verbosity: match matches.occurrences_of("verbosity") {
-                0 => Verbosity::None,
-                1 => Verbosity::Info,
-                2 => Verbosity::Verbose,
-                _ => Verbosity::Verbose,
-            },
-        },
+        log: Log::from(matches.occurrences_of("verbosity")),
     };
 
     match matches.subcommand() {

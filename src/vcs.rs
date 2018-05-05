@@ -7,8 +7,7 @@ use std::fmt::Debug;
 use std::path::Path;
 use strfmt::Format;
 use std::vec::Vec;
-
-use super::Log;
+use log::Log;
 
 pub type VcsCommand = Vec<String>;
 pub type VcsCommandList = Vec<VcsCommand>;
