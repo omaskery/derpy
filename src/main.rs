@@ -12,6 +12,7 @@ extern crate failure_derive;
 
 mod dependency;
 mod path_utils;
+mod arg_utils;
 mod derpyfile;
 mod consts;
 mod error;
@@ -21,6 +22,7 @@ mod log;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use arg_utils::{parse_option_key_value, validate_option_key_value};
 use consts::{DEPENDENCY_DIR, CONFIG_LOCK_FILE, CONFIG_FILE};
 use derpyfile::{DerpyFile, load_config, save_config};
 use path_utils::{determine_cwd, ensure_dir};
@@ -32,24 +34,6 @@ use log::Log;
 struct CommandContext {
     path: PathBuf,
     log: Log,
-}
-
-fn parse_option_key_value(text: &str) -> Result<(String, String), String> {
-    let parts = text.splitn(2, ":")
-        .collect::<Vec<_>>();
-
-    if parts.len() == 2 {
-        Ok((parts[0].into(), parts[1].into()))
-    } else {
-        Err("key value pair must be two strings separated by a ':' character".into())
-    }
-}
-
-fn validate_option_key_value(text: String) -> Result<(), String> {
-    match parse_option_key_value(&text) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
-    }
 }
 
 fn main() {
