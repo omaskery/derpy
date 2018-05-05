@@ -14,7 +14,6 @@ use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use strfmt::Format;
-use failure::Error;
 
 const VCS_INFO_DIR: &str = "vcs_info/";
 const DEPENDENCY_DIR: &str = "deps/";
@@ -47,7 +46,70 @@ enum DerpyError {
     #[fail(display = "acquire mode set to {:?} but no repository found", acquire_mode)]
     NonsenseAcquireMode {
         acquire_mode: AcquireMode,
-    }
+    },
+    #[fail(display = "failed to expand macros: {} (source text: {}, macros: {:?})", error, source_text, macros)]
+    MacroExpansionFailure {
+        source_text: String,
+        macros: std::collections::HashMap<String, String>,
+        error: strfmt::FmtError,
+    },
+    #[fail(display = "error invoking subprocess: {} (command: {:?})", error, cmd)]
+    SubprocessError {
+        cmd: VcsCommand,
+        error: subprocess::PopenError,
+    },
+    #[fail(display = "unable to determine current directory: {:?}", error)]
+    UnableToDetermineCurrentDir {
+        error: std::io::Error,
+    },
+    #[fail(display = "unable to change current directory: {:?}", error)]
+    UnableToChangeDir {
+        error: std::io::Error,
+    },
+    #[fail(display = "unable to determine current exe path: {:?}", error)]
+    UnableToDetermineCurrentExePath {
+        error: std::io::Error,
+    },
+    #[fail(display = "failed to create directory: {:?}", error)]
+    FailedToCreateDirectory {
+        error: std::io::Error,
+    },
+    #[fail(display = "unable to open VCS info file: {:?}", error)]
+    UnableToOpenVcsInfo {
+        error: std::io::Error,
+    },
+    #[fail(display = "unable to read VCS info file: {:?}", error)]
+    UnableToReadVcsInfo {
+        error: std::io::Error,
+    },
+    #[fail(display = "unable to decode VCS info file: {:?}", error)]
+    UnableToDecodeVcsInfo {
+        error: serde_json::Error,
+    },
+    #[fail(display = "unable to open config file: {:?}", error)]
+    UnableToOpenConfig {
+        error: std::io::Error,
+    },
+    #[fail(display = "unable to read config file: {:?}", error)]
+    UnableToReadConfig {
+        error: std::io::Error,
+    },
+    #[fail(display = "unable to decode config file: {:?}", error)]
+    UnableToDecodeConfig {
+        error: serde_json::Error,
+    },
+    #[fail(display = "unable to create config file: {:?}", error)]
+    UnableToCreateConfig {
+        error: std::io::Error,
+    },
+    #[fail(display = "unable to encode config file: {:?}", error)]
+    UnableToEncodeConfig {
+        error: serde_json::Error,
+    },
+    #[fail(display = "unable to write to config file: {:?}", error)]
+    UnableToWriteConfig {
+        error: std::io::Error,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -93,15 +155,22 @@ impl Default for DerpyFile {
 type VcsCommand = Vec<String>;
 type VcsCommandList = Vec<VcsCommand>;
 
-fn expand_vcs_command(cmd: &VcsCommand, macros: &std::collections::HashMap<String, String>) -> Result<VcsCommand, Error> {
+fn expand_vcs_command(cmd: &VcsCommand, macros: &std::collections::HashMap<String, String>) -> Result<VcsCommand, DerpyError> {
     let mut result = VcsCommand::new();
     for token in cmd.iter() {
-        result.push(token.format(&macros)?);
+        result.push(match token.format(&macros) {
+            Ok(formatted) => formatted,
+            Err(e) => return Err(DerpyError::MacroExpansionFailure {
+                source_text: token.clone(),
+                macros: macros.clone(),
+                error: e,
+            }),
+        });
     }
     Ok(result)
 }
 
-fn expand_vcs_command_list(list: &VcsCommandList, macros: &std::collections::HashMap<String, String>) -> Result<VcsCommandList, Error> {
+fn expand_vcs_command_list(list: &VcsCommandList, macros: &std::collections::HashMap<String, String>) -> Result<VcsCommandList, DerpyError> {
     let mut result = VcsCommandList::new();
     for cmd in list.iter() {
         result.push(expand_vcs_command(cmd, macros)?);
@@ -123,20 +192,20 @@ struct VcsInfo {
 impl VcsInfo {
     fn get_name(&self) -> &str { &self.name }
 
-    fn get_version(&self, log: &Log) -> Result<String, Error> {
+    fn get_version(&self, log: &Log) -> Result<String, DerpyError> {
         let (stdout, _) = Self::run_cmd(log, &self.get_version)?;
         Ok(stdout.trim().into())
     }
 
     fn get_default_version(&self) -> &str { &self.default_version }
 
-    fn acquire(&self, log: &Log, dependency: &Dependency) -> Result<(), Error> {
+    fn acquire(&self, log: &Log, dependency: &Dependency) -> Result<(), DerpyError> {
         let cmd = expand_vcs_command_list(&self.acquire, &dependency.build_macro_map())?;
         do_in_dir(log, &dependency.target, || Self::run_cmd_sequence(log, &cmd))?;
         Ok(())
     }
 
-    fn checkout(&self, log: &Log, dependency: &Dependency, at_version: &str) -> Result<(), Error> {
+    fn checkout(&self, log: &Log, dependency: &Dependency, at_version: &str) -> Result<(), DerpyError> {
         let mut macros = dependency.build_macro_map();
         macros.insert("DEP_VERSION".into(), at_version.into());
         let cmd = expand_vcs_command_list(&self.checkout, &macros)?;
@@ -144,29 +213,48 @@ impl VcsInfo {
         Ok(())
     }
 
-    fn upgrade(&self, log: &Log, dependency: &Dependency) -> Result<(), Error> {
+    fn upgrade(&self, log: &Log, dependency: &Dependency) -> Result<(), DerpyError> {
         let cmd = expand_vcs_command_list(&self.upgrade, &dependency.build_macro_map())?;
         do_in_dir(log, dependency.get_full_path(), || Self::run_cmd_sequence(log, &cmd))
     }
 
-    fn get_version_of(&self, log: &Log, dependency: &Dependency) -> Result<String, Error> {
+    fn get_version_of(&self, log: &Log, dependency: &Dependency) -> Result<String, DerpyError> {
         let cmd = expand_vcs_command(&self.get_version_of, &dependency.build_macro_map())?;
         let (stdout, _) = do_in_dir(log, dependency.get_full_path(), || Self::run_cmd(log, &cmd))?;
         Ok(stdout.trim().into())
     }
 
-    fn run_cmd(log: &Log, cmd: &VcsCommand) -> Result<(String, String), Error> {
+    fn run_cmd(log: &Log, cmd: &VcsCommand) -> Result<(String, String), DerpyError> {
         log.info(format!("running command: {:?}", cmd));
-        let mut p = subprocess::Popen::create(cmd, subprocess::PopenConfig {
+        let p = subprocess::Popen::create(cmd, subprocess::PopenConfig {
             stdout: subprocess::Redirection::Pipe,
             stderr: subprocess::Redirection::Pipe,
             ..Default::default()
-        })?;
+        });
+        let mut p = match p {
+            Ok(p) => p,
+            Err(e) => return Err(DerpyError::SubprocessError {
+                cmd: cmd.clone(),
+                error: e,
+            }),
+        };
 
-        let (stdout, stderr) = p.communicate(None)?;
+        let (stdout, stderr) = match p.communicate(None) {
+            Ok(result) => result,
+            Err(e) => return Err(DerpyError::SubprocessError {
+                cmd: cmd.clone(),
+                error: e,
+            }),
+        };
         let (stdout, stderr) = (stdout.unwrap(), stderr.unwrap());
 
-        let return_code = p.wait()?;
+        let return_code = match p.wait() {
+            Ok(result) => result,
+            Err(e) => return Err(DerpyError::SubprocessError {
+                cmd: cmd.clone(),
+                error: e,
+            }),
+        };
 
         if return_code.success() == false {
             return Err(DerpyError::VcsCommandFailed { cmd: cmd.clone(), return_code, stdout, stderr }.into());
@@ -175,7 +263,7 @@ impl VcsInfo {
         Ok((stdout, stderr))
     }
 
-    fn run_cmd_sequence(log: &Log, sequence: &VcsCommandList) -> Result<(), Error> {
+    fn run_cmd_sequence(log: &Log, sequence: &VcsCommandList) -> Result<(), DerpyError> {
         for cmd in sequence.iter() {
             let _output = Self::run_cmd(log, cmd)?;
         }
@@ -215,32 +303,59 @@ struct CommandContext {
     log: Log,
 }
 
-fn do_in_dir<T, P: AsRef<Path> + std::fmt::Debug, F: FnOnce() -> Result<T, Error>>(log: &Log, path: P, f: F) -> Result<T, Error> {
-    let initial_dir = std::env::current_dir()?;
+fn do_in_dir<T, P: AsRef<Path> + std::fmt::Debug, F: FnOnce() -> Result<T, DerpyError>>(log: &Log, path: P, f: F) -> Result<T, DerpyError> {
+    let initial_dir = match std::env::current_dir() {
+        Ok(dir) => dir,
+        Err(e) => return Err(DerpyError::UnableToDetermineCurrentDir {
+            error: e,
+        }),
+    };
     log.verbose(format!("entering dir {:?} -> {:?}", &initial_dir, &path));
-    std::env::set_current_dir(&path)?;
+    if let Err(e) = std::env::set_current_dir(&path) {
+        return Err(DerpyError::UnableToChangeDir {
+            error: e,
+        });
+    }
     let result = f()?;
     log.verbose(format!("leaving dir {:?} -> {:?}", &path, &initial_dir));
-    std::env::set_current_dir(&initial_dir)?;
+    if let Err(e) = std::env::set_current_dir(&initial_dir) {
+        return Err(DerpyError::UnableToChangeDir {
+            error: e,
+        });
+    }
     Ok(result)
 }
 
-fn install_dir() -> Result<PathBuf, Error> {
+fn install_dir() -> Result<PathBuf, DerpyError> {
     let dir = if cfg!(debug_assertions) {
-        std::env::current_dir()?
+        match std::env::current_dir() {
+            Ok(dir) => dir,
+            Err(e) => return Err(DerpyError::UnableToDetermineCurrentDir {
+                error: e,
+            }),
+        }
     } else {
-        std::env::current_exe()?
+        match std::env::current_exe() {
+            Ok(dir) => dir,
+            Err(e) => return Err(DerpyError::UnableToDetermineCurrentExePath {
+                error: e,
+            })
+        }
     };
 
     Ok(dir)
 }
 
-fn ensure_dir<P: AsRef<Path>>(path: P) -> Result<(), Error> {
-    std::fs::create_dir_all(path)?;
+fn ensure_dir<P: AsRef<Path>>(path: P) -> Result<(), DerpyError> {
+    if let Err(e) = std::fs::create_dir_all(path) {
+        return Err(DerpyError::FailedToCreateDirectory {
+            error: e,
+        })
+    }
     Ok(())
 }
 
-fn load_vcs_info(vcs_name: &str) -> Result<Option<VcsInfo>, Error> {
+fn load_vcs_info(vcs_name: &str) -> Result<Option<VcsInfo>, DerpyError> {
     let full_path = install_dir()?
         .join(VCS_INFO_DIR)
         .join(vcs_name)
@@ -248,29 +363,73 @@ fn load_vcs_info(vcs_name: &str) -> Result<Option<VcsInfo>, Error> {
 
     if full_path.is_file() {
         let mut contents = String::new();
-        let mut file = std::fs::File::open(full_path)?;
-        file.read_to_string(&mut contents)?;
-        Ok(Some(serde_json::from_str(&contents)?))
+        let mut file = match std::fs::File::open(full_path) {
+            Ok(file) => file,
+            Err(e) => return Err(DerpyError::UnableToOpenVcsInfo {
+                error: e,
+            }),
+        };
+        if let Err(e) = file.read_to_string(&mut contents) {
+            return Err(DerpyError::UnableToReadVcsInfo {
+                error: e,
+            });
+        }
+        match serde_json::from_str(&contents) {
+            Ok(info) => Ok(Some(info)),
+            Err(e) => Err(DerpyError::UnableToDecodeVcsInfo {
+                error: e,
+            }),
+        }
     } else {
         Ok(None)
     }
 }
 
-fn load_config<P: AsRef<Path>>(path: P) -> Result<DerpyFile, Error> {
+fn load_config<P: AsRef<Path>>(path: P) -> Result<DerpyFile, DerpyError> {
     let mut contents = String::new();
-    let mut file = std::fs::File::open(path)?;
-    file.read_to_string(&mut contents)?;
-    Ok(serde_json::from_str(&contents)?)
+    let mut file = match std::fs::File::open(path) {
+        Ok(file) => file,
+        Err(e) => return Err(DerpyError::UnableToOpenConfig {
+            error: e,
+        }),
+    };
+    if let Err(e) = file.read_to_string(&mut contents) {
+        return Err(DerpyError::UnableToReadConfig {
+            error: e,
+        });
+    }
+    match serde_json::from_str(&contents) {
+        Ok(config) => Ok(config),
+        Err(e) => Err(DerpyError::UnableToDecodeConfig {
+            error: e,
+        })
+    }
 }
 
-fn save_config<P: AsRef<Path>>(config: &DerpyFile, path: P) -> Result<(), Error> {
-    let mut file = std::fs::OpenOptions::new()
+fn save_config<P: AsRef<Path>>(config: &DerpyFile, path: P) -> Result<(), DerpyError> {
+    let file = std::fs::OpenOptions::new()
         .write(true)
         .truncate(true)
         .create(true)
-        .open(path)?;
-    let contents = serde_json::to_string_pretty(config)?;
-    Ok(file.write_all(contents.as_bytes())?)
+        .open(path);
+    let mut file = match file {
+        Ok(file) => file,
+        Err(e) => return Err(DerpyError::UnableToCreateConfig {
+            error: e,
+        }),
+    };
+    let contents = match serde_json::to_string_pretty(config) {
+        Ok(contents) => contents,
+        Err(e) => return Err(DerpyError::UnableToEncodeConfig {
+            error: e,
+        }),
+    };
+    match file.write_all(contents.as_bytes()) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(DerpyError::UnableToWriteConfig {
+            error: e,
+        }),
+    }
 }
 
 fn parse_option_key_value(text: &str) -> Result<(String, String), String> {
@@ -355,23 +514,33 @@ fn main() {
     }
 }
 
-fn determine_cwd(override_path: Option<&str>) -> Result<PathBuf, Error> {
+fn determine_cwd(override_path: Option<&str>) -> Result<PathBuf, DerpyError> {
     let path = match override_path {
         Some(path) => {
             let path: PathBuf = path.into();
             if path.is_absolute() {
                 path
             } else {
-                std::env::current_dir()?.join(path)
+                match std::env::current_dir() {
+                    Ok(dir) => dir.join(path),
+                    Err(e) => return Err(DerpyError::UnableToDetermineCurrentDir {
+                        error: e,
+                    }),
+                }
             }
         },
-        _ => std::env::current_dir()?,
+        _ => match std::env::current_dir() {
+            Ok(dir) => dir,
+            Err(e) => return Err(DerpyError::UnableToDetermineCurrentDir {
+                error: e,
+            }),
+        },
     };
 
     Ok(path)
 }
 
-fn run_cli(matches: clap::ArgMatches) -> Result<(), Error> {
+fn run_cli(matches: clap::ArgMatches) -> Result<(), DerpyError> {
     let context = CommandContext {
         path: determine_cwd(matches.value_of("path"))?,
         log: Log {
@@ -398,7 +567,7 @@ fn run_cli(matches: clap::ArgMatches) -> Result<(), Error> {
     }
 }
 
-fn cmd_init(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(), Error> {
+fn cmd_init(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(), DerpyError> {
     let config_path = context.path.join(CONFIG_FILE);
     if config_path.is_file() {
         return Err(DerpyError::AlreadyInitialised.into());
@@ -406,7 +575,7 @@ fn cmd_init(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(), 
     Ok(save_config(&Default::default(), config_path)?)
 }
 
-fn cmd_add(context: CommandContext, matches: &clap::ArgMatches) -> Result<(), Error> {
+fn cmd_add(context: CommandContext, matches: &clap::ArgMatches) -> Result<(), DerpyError> {
     let vcs = matches.value_of("vcs").unwrap().to_string();
     let name = matches.value_of("name").unwrap().to_string();
     let url = matches.value_of("url").unwrap().to_string();
@@ -491,7 +660,7 @@ enum AcquireMode {
     Upgrade,
 }
 
-fn acquire(context: &CommandContext, dep: &Dependency, acquire_mode: AcquireMode) -> Result<AcquireOutcome, Error> {
+fn acquire(context: &CommandContext, dep: &Dependency, acquire_mode: AcquireMode) -> Result<AcquireOutcome, DerpyError> {
     let vcs = match load_vcs_info(&dep.vcs)? {
         Some(vcs) => vcs,
         None => return Err(DerpyError::UnknownVcs { name: dep.vcs.clone() }.into()),
@@ -556,7 +725,7 @@ fn acquire(context: &CommandContext, dep: &Dependency, acquire_mode: AcquireMode
     }
 }
 
-fn cmd_acquire(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(), Error> {
+fn cmd_acquire(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(), DerpyError> {
     let config_path = context.path.join(CONFIG_FILE);
     let config = load_config(&config_path)?;
 
@@ -613,7 +782,7 @@ fn cmd_acquire(context: CommandContext, _matches: &clap::ArgMatches) -> Result<(
     Ok(())
 }
 
-fn cmd_upgrade(context: CommandContext, matches: &clap::ArgMatches) -> Result<(), Error> {
+fn cmd_upgrade(context: CommandContext, matches: &clap::ArgMatches) -> Result<(), DerpyError> {
     let config_path = context.path.join(CONFIG_FILE);
     let config = load_config(&config_path)?;
 
