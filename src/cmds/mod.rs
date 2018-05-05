@@ -5,6 +5,7 @@ use clap::ArgMatches;
 use log::Log;
 
 mod init;
+mod add;
 
 pub struct CommandContext<'a> {
     pub matches: ArgMatches<'a>,
@@ -26,3 +27,4 @@ impl<'a> CommandContext<'a> {
 }
 
 pub use self::init::init;
+pub use self::add::add;
