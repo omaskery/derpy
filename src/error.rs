@@ -5,7 +5,7 @@ use serde_json;
 use std::io;
 
 use super::AcquireMode;
-use super::VcsCommand;
+use vcs::VcsCommand;
 
 #[derive(Fail, Debug)]
 pub enum DerpyError {
