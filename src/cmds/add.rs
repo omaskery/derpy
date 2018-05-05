@@ -7,7 +7,7 @@ use cmds::CommandContext;
 use vcs::load_vcs_info;
 use error::DerpyError;
 
-pub fn add(context: CommandContext) -> Result<(), DerpyError> {
+pub fn cli_add(context: CommandContext) -> Result<(), DerpyError> {
     let vcs = context.matches.value_of("vcs").unwrap().to_string();
     let name = context.matches.value_of("name").unwrap().to_string();
     let url = context.matches.value_of("url").unwrap().to_string();

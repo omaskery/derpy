@@ -6,6 +6,7 @@ use log::Log;
 
 mod init;
 mod add;
+mod acquire;
 
 pub struct CommandContext<'a> {
     pub matches: ArgMatches<'a>,
@@ -26,5 +27,6 @@ impl<'a> CommandContext<'a> {
     }
 }
 
-pub use self::init::init;
-pub use self::add::add;
+pub use self::init::cli_init;
+pub use self::add::cli_add;
+pub use self::acquire::cli_acquire;
