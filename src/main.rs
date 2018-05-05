@@ -10,6 +10,7 @@ extern crate serde_derive;
 #[macro_use]
 extern crate failure_derive;
 
+mod dependency;
 mod error;
 
 use std::collections::BTreeMap;
@@ -17,39 +18,13 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use strfmt::Format;
 
+use dependency::Dependency;
 use error::DerpyError;
 
 const VCS_INFO_DIR: &str = "vcs_info/";
 const DEPENDENCY_DIR: &str = "deps/";
 const CONFIG_FILE: &str = "derpy.json";
 const CONFIG_LOCK_FILE: &str = "derpy.lock.json";
-
-#[derive(Serialize, Deserialize, Clone)]
-struct Dependency {
-    name: String,
-    vcs: String,
-    url: String,
-    version: String,
-    target: String,
-    options: BTreeMap<String, String>,
-}
-
-impl Dependency {
-    fn get_full_path(&self) -> PathBuf {
-        PathBuf::from(&self.target).join(&self.name)
-    }
-
-    fn build_macro_map(&self) -> std::collections::HashMap<String, String> {
-        let mut result = std::collections::HashMap::new();
-        result.insert("DEP_NAME".into(), self.name.clone());
-        result.insert("DEP_URL".into(), self.url.clone());
-        result.insert("DEP_VERSION".into(), self.version.clone());
-        for (key, value) in self.options.iter() {
-            result.insert(format!("DEP_OPT_{}", key), value.clone());
-        }
-        result
-    }
-}
 
 #[derive(Serialize, Deserialize)]
 struct DerpyFile {
