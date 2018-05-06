@@ -56,6 +56,10 @@ and http://github.com/omaskery/classdict.git as the *URL*:
 
 The derpy.json file will now contain information describing your new dependency, but nothing will be fetched yet.
 
+- Want to track a specific version of a dependency? See the --version parameter for `derpy add`
+- Want to place the dependency somewhere other than `project_dir/deps/`? See the --target parameter for `derpy add`
+- Have specifal key:value pairs that your version control system needs per-dependency? See the --option parameter for `derpy add`
+
 ## acquiring dependencies
 
 To fetch dependencies for your project simply run:
