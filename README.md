@@ -7,7 +7,10 @@ intrinsic internet dependencies, was not bound to a particular programming
 language or specific version control system. I found no results that
 met my requirements, so I wrote derpy!
 
-**Note:** this is *highly* experimental right now and not at all battle tested, consider it a toy for now! :)
+It has since, however, been pointed out that **a more polished/finished tool already exists**: https://github.com/buildinspace/peru
+
+**If you come to this repository looking for a valid tool I strongly suggest looking at peru instead, as seeing
+it has made further development on derpy pointless! :)**
 
 # motivation
 
