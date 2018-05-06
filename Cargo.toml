@@ -2,6 +2,14 @@
 name = "derpy"
 version = "0.1.0"
 authors = ["Oliver Maskery <omaskery@googlemail.com>"]
+repository = "http://github.com/omaskery/derpy"
+description = "derpy is a simple language & vcs agnostic dependency manager"
+homepage = "https://crates.io/crates/derpy"
+readme =  "README.md"
+license = "MIT"
+
+[badges]
+maintenance = { status = "experimental" }
 
 [dependencies]
 clap = "2.31.2"
