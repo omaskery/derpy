@@ -27,7 +27,7 @@ to perform essential operations to interact with dependencies. See the `vcs_info
 The tool is language agnostic in that it is purely a mechanism for ensuring files from particular repositories
 are retrieved and placed in the project directory at specified locations.
 
-The tool has no intrinsict dependency on the internet due to having no central repository or similar,
+The tool has no intrinsic dependency on the internet due to having no central repository or similar,
 though there is nothing stopping somebody from "teaching" derpy how to do.
 
 # examples
