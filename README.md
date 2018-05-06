@@ -18,6 +18,18 @@ with libraries, largely because existing dependency management tools don't solve
 
 So I thought I'd write a small tool to solve that specific problem and no more.
 
+# high level design
+
+The tool is version control system agnostic in that it doesn't have any built-in code for talking
+to specific version control systems, it contains a simple data based system for "teaching" derpy how
+to perform essential operations to interact with dependencies. See the `vcs_info` directory for examples.
+
+The tool is language agnostic in that it is purely a mechanism for ensuring files from particular repositories
+are retrieved and placed in the project directory at specified locations.
+
+The tool has no intrinsict dependency on the internet due to having no central repository or similar,
+though there is nothing stopping somebody from "teaching" derpy how to do.
+
 # example
 
 ## initialisation
