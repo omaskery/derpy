@@ -46,13 +46,13 @@ This will create a derpy.json file that contains (an empty) list of dependencies
 
 To add a dependency you need at least three pieces of information:
 
-- *version control system* - what version control system is the dependency contained in?
-- *dependency name* - what will you call the dependency
+- **version control system** - what version control system is the dependency contained in?
+- **dependency name** - what will you call the dependency
   (*note:* that this will also be the name of the folder it is stored in within your project)
-- *URL* - some string (typically a URL) that explains where to find the dependency
+- **URL** - some string (typically a URL) that explains where to find the dependency
 
-In this example, let's use _git_ as the *version control system*, _classdict_ as the *dependency name*
-and http://github.com/omaskery/classdict.git as the *URL*:
+In this example, let's use _git_ as the **version control system**, _classdict_ as the **dependency name**
+and http://github.com/omaskery/classdict.git as the **URL**:
 
 `derpy add git classdict http://github.com/omaskery/classdict.git`
 
