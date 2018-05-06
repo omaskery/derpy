@@ -7,6 +7,8 @@ intrinsic internet dependencies, was not bound to a particular programming
 language or specific version control system. I found no results that
 met my requirements, so I wrote derpy!
 
+**Note:** this is *highly* experimental right now and not at all battle tested, consider it a toy for now! :)
+
 # motivation
 
 One of the development environments I interact with uses multiple version control systems
