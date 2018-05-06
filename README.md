@@ -27,7 +27,9 @@ to specific version control systems, it contains a simple data based system for 
 to perform essential operations to interact with dependencies. See the `vcs_info` directory for examples.
 
 The tool is language agnostic in that it is purely a mechanism for ensuring files from particular repositories
-are retrieved and placed in the project directory at specified locations.
+are retrieved and placed in the project directory at specified locations. Note that, whilst the goal is to be
+language agnostic - it is primarily aimed at languages with poor dependency management situations such as C/C++.
+This tool has no desire to replace existing dependency managers.
 
 The tool has no intrinsic dependency on the internet due to having no central repository or similar,
 though there is nothing stopping somebody from "teaching" derpy how to do.
