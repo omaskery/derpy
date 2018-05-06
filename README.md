@@ -30,7 +30,7 @@ are retrieved and placed in the project directory at specified locations.
 The tool has no intrinsict dependency on the internet due to having no central repository or similar,
 though there is nothing stopping somebody from "teaching" derpy how to do.
 
-# example
+# examples
 
 ## initialisation
 
@@ -42,7 +42,7 @@ This will create a derpy.json file that contains (an empty) list of dependencies
 
 ## adding dependencies
 
-To add a dependency you need at least two three pieces of information:
+To add a dependency you need at least three pieces of information:
 
 - *version control system* - what version control system is the dependency contained in?
 - *dependency name* - what will you call the dependency
